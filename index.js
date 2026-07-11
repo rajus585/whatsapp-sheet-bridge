@@ -1,8 +1,6 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const QRCode = require('qrcode-terminal');
 const axios = require('axios');
 
-// यह URL सर्वर की एनवायरनमेंट सेटिंग से आएगा
 const SCRIPT_URL = process.env.GOOGLE_SCRIPT_URL;
 
 async function connectToWhatsApp() {
@@ -10,7 +8,7 @@ async function connectToWhatsApp() {
     
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        printQRInTerminal: false
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -18,30 +16,31 @@ async function connectToWhatsApp() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
-            console.log('--- QR CODE READY ---');
-            QRCode.generate(qr, { small: true });
+            console.log('\n==================================================');
+            console.log('👉 QR कोड तैयार है! नीचे दिए गए लिंक को कॉपी करके ब्राउज़र में खोलें और स्कैन करें:');
+            console.log(`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`);
+            console.log('==================================================\n');
         }
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Connection closed, reconnecting:', shouldReconnect);
+            console.log('कनेक्शन बंद हुआ, दोबारा कनेक्ट कर रहे हैं:', shouldReconnect);
             if (shouldReconnect) {
                 connectToWhatsApp();
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp connected successfully and running 24/7!');
+            console.log('बधाई हो! WhatsApp सफलतापूर्वक कनेक्ट हो गया है।');
         }
     });
 
     sock.ev.on('messages.upsert', async (m) => {
         if (m.type === 'notify') {
             for (const msg of m.messages) {
-                // सिर्फ आने वाले (Incoming) टेक्स्ट मैसेजेस के लिए
                 if (!msg.key.fromMe && msg.message?.conversation) {
                     const fromNumber = msg.key.remoteJid.split('@')[0];
                     const senderName = msg.pushName || "Unknown";
                     const messageText = msg.message.conversation;
 
-                    console.log(`New Message: ${fromNumber} - ${messageText}`);
+                    console.log(`नया मैसेज: ${fromNumber} - ${messageText}`);
 
                     if (SCRIPT_URL) {
                         try {
@@ -50,9 +49,9 @@ async function connectToWhatsApp() {
                                 name: senderName,
                                 message: messageText
                             });
-                            console.log('Data successfully sent to Google Sheet.');
+                            console.log('डेटा Google Sheet में सेव हो गया।');
                         } catch (err) {
-                            console.error('Error sending to Sheet:', err.message);
+                            console.error('Sheet में भेजने में त्रुटि:', err.message);
                         }
                     }
                 }
